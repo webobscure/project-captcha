@@ -12,18 +12,16 @@ app.use(helmet());
 app.use(express.json());
 app.use(
   cors({
-    origin: "*", // или укажи конкретный домен магазина
+    origin: "*", 
     methods: ["POST", "GET"],
   })
 );
-// Настройки (из env)
-const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET; // храните в .env / vault
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET; 
 const PORT = process.env.PORT || 3000;
 
-// rate limiter — простая защита
 const limiter = rateLimit({
-  windowMs: 60 * 1000, // 1 мин
-  max: 20, // max 20 запросов с одного IP в минуту (подберите под нагрузку)
+  windowMs: 60 * 1000, 
+  max: 20, 
   standardHeaders: true,
   legacyHeaders: false,
 });

@@ -69,7 +69,9 @@ app.post('/api/lead', async (req, res) => {
       }
   
       // 4️⃣ проверяем капчу у Cloudflare
+      
       const verify = await verifyTurnstile(body.turnstileToken, ip);
+      console.log('Turnstile verify response:', verify);
       if (!verify?.success) {
         console.warn('Turnstile fail:', verify);
         return res.status(403).json({ ok: false, message: 'Captcha verification failed' });

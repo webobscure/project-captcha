@@ -1,4 +1,23 @@
 {
+  "name": "btb-form",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/webobscure/project-captcha#readme",
+  "bugs": {
+    "url": "https://github.com/webobscure/project-captcha/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webobscure/project-captcha.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
@@ -7,5 +26,6 @@
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
     "node-fetch": "^3.3.2"
-  }
+  },
+  "devDependencies": {}
 }

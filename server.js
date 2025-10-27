@@ -94,35 +94,6 @@ app.post('/api/lead', async (req, res) => {
     }
   });
 
-app.post("/api/verify-captcha", async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ ok: false, message: "No token" });
 
-  const params = new URLSearchParams();
-  params.append("secret", process.env.TURNSTILE_SECRET);
-  params.append("response", token);
-
-  const result = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: params,
-    }
-  ).then((r) => r.json());
-    if (req.body.hp_field) {
-  return res.status(400).json({ ok: false, message: 'Bot detected' });
-}
-  if (result.success) {
-    return res.json({ ok: true });
-  } else {
-    return res
-      .status(400)
-      .json({
-        ok: false,
-        message: "Captcha failed",
-        errors: result["error-codes"],
-      });
-  }
-});
 
 app.listen(PORT, () => console.log(`Server ${PORT}`));

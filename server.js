@@ -12,7 +12,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
 const BITRIX_WEBHOOK = process.env.BITRIX_WEBHOOK; 
-// например: https://yourdomain.bitrix24.ru/rest/XXX/YYY/crm.lead.add.json
 
 app.set("trust proxy", true);
 
@@ -95,6 +94,7 @@ app.post("/api/lead", async (req, res) => {
           body: JSON.stringify({
             fields: {
               TITLE: `Wholesale Lead US`,
+              ASSIGNED_BY_ID: 16167,
               NAME: body.name,
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],

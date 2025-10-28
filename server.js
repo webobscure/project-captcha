@@ -94,7 +94,7 @@ app.post("/api/lead", async (req, res) => {
           body: JSON.stringify({
             fields: {
               TITLE: `Wholesale Lead US`,
-              ASSIGNED_BY_ID: 16167,
+              // ASSIGNED_BY_ID: 16167,
               NAME: body.name,
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],

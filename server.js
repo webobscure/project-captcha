@@ -94,7 +94,6 @@ app.post("/api/lead", async (req, res) => {
           body: JSON.stringify({
             fields: {
               TITLE: `Wholesale Lead US`,
-              // ASSIGNED_BY_ID: 16167,
               NAME: body.name,
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],
@@ -102,6 +101,7 @@ app.post("/api/lead", async (req, res) => {
               COMMENTS: `SKU: ${body.sku}\nFrom ${body.page_location || ""}`,
               SOURCE_ID: "WEBFORM",
               UTM_SOURCE: body.page_location || "",
+              WEBFORM_SITES: body.page_location || "",
             },
             params: { REGISTER_SONET_EVENT: "Y" },
           }),

@@ -81,13 +81,10 @@ app.post("/api/lead", async (req, res) => {
     // --- 2️⃣ Проверка page_location / referrer для инфо ---
     const page = body.page_location || "";
     const ref = body.page_referrer || "";
-    // убрал onkron.us из suspicious
     const suspiciousDomains = [/google/i, /gclid=/i];
     if (suspiciousDomains.some((r) => r.test(page) || r.test(ref))) {
       console.warn("Suspicious domain detected:", { ip, page, ref });
-      return res
-        .status(400)
-        .json({ ok: false, message: "Suspicious referrer" });
+      return res.status(400).json({ ok: false, message: "Suspicious referrer" });
     }
 
     // --- 3️⃣ Honeypot ---
@@ -96,28 +93,17 @@ app.post("/api/lead", async (req, res) => {
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
-      return res
-        .status(400)
-        .json({ ok: false, message: "Bot detected (honeypot)" });
+      return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
     }
 
     // --- 4️⃣ Проверка времени заполнения ---
     if (!body.form_time || Number(body.form_time) < 3) {
-      console.warn("Form submitted too fast:", {
-        ip,
-        form_time: body.form_time,
-      });
-      return res
-        .status(400)
-        .json({ ok: false, message: "Too fast submission" });
+      console.warn("Form submitted too fast:", { ip, form_time: body.form_time });
+      return res.status(400).json({ ok: false, message: "Too fast submission" });
     }
 
     // --- 5️⃣ JS-токен ---
-    if (
-      !body.js_token ||
-      typeof body.js_token !== "string" ||
-      body.js_token.length < 20
-    ) {
+    if (!body.js_token || typeof body.js_token !== "string" || body.js_token.length < 20) {
       console.warn("Missing or invalid JS token:", { ip });
       return res.status(400).json({ ok: false, message: "Missing JS token" });
     }
@@ -133,14 +119,9 @@ app.post("/api/lead", async (req, res) => {
     const phone = (body.phone || "").replace(/\D/g, "");
     const isLatin = /^[A-Za-z\s]+$/.test(name);
     const isCyrillic = /[А-Яа-яЁё]/.test(name);
-    if (
-      (isLatin && phone.startsWith("7")) ||
-      (isCyrillic && phone.startsWith("1"))
-    ) {
+    if ((isLatin && phone.startsWith("7")) || (isCyrillic && phone.startsWith("1"))) {
       console.warn("Suspicious name+phone combo:", { ip, name, phone });
-      return res
-        .status(400)
-        .json({ ok: false, message: "Suspicious combination" });
+      return res.status(400).json({ ok: false, message: "Suspicious combination" });
     }
 
     // --- 8️⃣ Rate-limit вручную (3 лида / минута) ---
@@ -151,40 +132,31 @@ app.post("/api/lead", async (req, res) => {
       console.warn("Too many leads from one IP:", ip);
       return res.status(429).json({ ok: false, message: "Too many requests" });
     }
-    // --- 8.5 Определяем источник формы ---
+
+    // --- 8.5 Определяем источник формы через маппинг ---
+    const sourceMap = {
+      openWholesaleHeader: "с Шапки",
+      openWholesaleFooter: "с Футера",
+      page: "со страницы",
+      modal: "из модалки"
+    };
+
     let source = "unknown";
-
-    if (body.source && typeof body.source === "string") {
-      // Если фронтенд явно передал source
-      source = body.source;
-    } else if (body.button_id) {
-      // Если пришёл ID кнопки
-      if (body.button_id === "openWholesaleHeader") source = "с Шапки";
-      else if (body.button_id === "openWholesaleFooter") source = "с Футера";
-    } else if (body.form_id) {
-      // Если пришёл ID формы с data-source
-      if (body.form_id === "wholesaleForm-page" && body.page_type) {
-        if (body.page_type === "retail") source = "со страницы business solution";
-        else if (body.page_type === "distributor") source = "со страницы distributor";
-      }
+    if (body.button_id && typeof body.button_id === "string") {
+      source = sourceMap[body.button_id] || body.button_id;
+    } else if (body.source && typeof body.source === "string") {
+      source = sourceMap[body.source] || body.source;
     }
+    body.source = source;
 
-    body.source = source; // подставляем в payload для Bitrix
     // --- 9️⃣ Проверка Turnstile ---
     if (!body.turnstileToken) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "Captcha token required" });
+      return res.status(400).json({ ok: false, message: "Captcha token required" });
     }
     const verify = await verifyTurnstile(body.turnstileToken, ip);
     console.log("Turnstile verify response:", verify);
-    if (
-      !verify?.success ||
-      (verify?.score !== undefined && verify.score < 0.5)
-    ) {
-      return res
-        .status(403)
-        .json({ ok: false, message: "Captcha verification failed" });
+    if (!verify?.success || (verify?.score !== undefined && verify.score < 0.5)) {
+      return res.status(403).json({ ok: false, message: "Captcha verification failed" });
     }
 
     // --- 10️⃣ Создание лида ---
@@ -203,9 +175,7 @@ app.post("/api/lead", async (req, res) => {
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: body.company || "",
-              COMMENTS: `SKU/INFO: ${body.sku}\nFrom ${
-                body.page_location || ""
-              }\nForm source: ${body.source}\nBy ${body.name}`,
+              COMMENTS: `SKU/INFO: ${body.sku}\nFrom ${body.page_location || ""}\nForm source: ${body.source}\nBy ${body.name}`,
               SOURCE_ID: "WEBFORM",
               UTM_SOURCE: body.page_location || "",
               WEBFORM_URL: body.page_location || "",

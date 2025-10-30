@@ -12,13 +12,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
 const BITRIX_WEBHOOK = process.env.BITRIX_WEBHOOK;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "yourdomain.com"; // ← укажи свой домен
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "onkron.us";
 
+// --- Настройка Express ---
 app.set("trust proxy", true);
 app.use(helmet());
 app.use(express.json());
 
-// --- Разрешённые источники ---
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -29,14 +29,17 @@ app.use(
   })
 );
 
-// --- Лимит запросов ---
+// --- Rate limit по IP ---
 const limiter = rateLimit({
-  windowMs: 60 * 1000,
+  windowMs: 60 * 1000, // 1 минута
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use("/api/lead", limiter);
+
+// --- Простейший кеш для частых лидов ---
+const recentIps = new Map();
 
 // --- Проверка Turnstile ---
 async function verifyTurnstile(token, remoteip) {
@@ -64,54 +67,88 @@ app.post("/api/lead", async (req, res) => {
   try {
     const body = req.body;
     const ip = req.ip;
+    const now = Date.now();
 
-    // 1️⃣ Проверка источника запроса
-    const origin = req.get("origin") || req.get("referer") || "";
-    if (!origin.includes(ALLOWED_ORIGIN)) {
-      return res.status(403).json({ ok: false, message: "Invalid origin" });
+    // --- 1️⃣ Проверка источника запроса ---
+    const origin = req.get("origin") || "";
+    const page = body.page_location || "";
+    const ref = body.page_referrer || "";
+
+    if (
+      !origin.includes(ALLOWED_ORIGIN) &&
+      !page.includes(ALLOWED_ORIGIN) &&
+      !ref.includes(ALLOWED_ORIGIN)
+    ) {
+      console.warn("Blocked by origin/ref check:", { ip, origin, page, ref });
+      return res.status(403).json({ ok: false, message: "Invalid origin or referrer" });
     }
 
-    // 2️⃣ Honeypot (динамическое имя)
+    // --- 2️⃣ Проверка на подозрительные домены ---
+    const suspiciousDomains = [/onkron\.us/i, /google/i, /gclid=/i];
+    if (suspiciousDomains.some((r) => r.test(page) || r.test(ref))) {
+      console.warn("Suspicious domain detected:", { ip, page, ref });
+      return res.status(400).json({ ok: false, message: "Suspicious referrer" });
+    }
+
+    // --- 3️⃣ Honeypot (динамическое имя) ---
     const honeypotTriggered = Object.entries(body).some(
       ([key, value]) => key.startsWith("hp_") && value && value.trim() !== ""
     );
     if (honeypotTriggered) {
+      console.warn("Honeypot triggered:", { ip, body });
       return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
     }
 
-    // 3️⃣ Проверка времени заполнения
+    // --- 4️⃣ Проверка времени заполнения ---
     if (!body.form_time || Number(body.form_time) < 3) {
+      console.warn("Form submitted too fast:", { ip, form_time: body.form_time });
       return res.status(400).json({ ok: false, message: "Too fast submission" });
     }
 
-    // 4️⃣ JS-токен
+    // --- 5️⃣ JS-токен ---
     if (!body.js_token || typeof body.js_token !== "string" || body.js_token.length < 20) {
+      console.warn("Missing or invalid JS token:", { ip });
       return res.status(400).json({ ok: false, message: "Missing JS token" });
     }
 
-    // 5️⃣ Проверка основных полей
+    // --- 6️⃣ Проверка основных полей ---
     if (!validatePayload(body)) {
+      console.warn("Invalid payload:", { ip, body });
       return res.status(400).json({ ok: false, message: "Invalid input" });
     }
 
-    // 6️⃣ Проверка Turnstile
+    // --- 7️⃣ Проверка имени + телефона ---
+    const name = (body.name || "").trim();
+    const phone = (body.phone || "").replace(/\D/g, "");
+    const isLatin = /^[A-Za-z\s]+$/.test(name);
+    const isCyrillic = /[А-Яа-яЁё]/.test(name);
+
+    if ((isLatin && phone.startsWith("7")) || (isCyrillic && phone.startsWith("1"))) {
+      console.warn("Suspicious name+phone combo:", { ip, name, phone });
+      return res.status(400).json({ ok: false, message: "Suspicious combination" });
+    }
+
+    // --- 8️⃣ Rate-limit вручную (3 лида / минута) ---
+    const history = recentIps.get(ip) || [];
+    const newHistory = [...history.filter((t) => now - t < 60_000), now];
+    recentIps.set(ip, newHistory);
+    if (newHistory.length > 3) {
+      console.warn("Too many leads from one IP:", ip);
+      return res.status(429).json({ ok: false, message: "Too many requests" });
+    }
+
+    // --- 9️⃣ Проверка Turnstile ---
     if (!body.turnstileToken) {
       return res.status(400).json({ ok: false, message: "Captcha token required" });
     }
 
     const verify = await verifyTurnstile(body.turnstileToken, ip);
     console.log("Turnstile verify response:", verify);
-
-    if (!verify?.success) {
+    if (!verify?.success || (verify?.score !== undefined && verify.score < 0.5)) {
       return res.status(403).json({ ok: false, message: "Captcha verification failed" });
     }
 
-    // (опционально) Проверяем score, если есть
-    if (verify?.score !== undefined && verify.score < 0.5) {
-      return res.status(403).json({ ok: false, message: "Low captcha score" });
-    }
-
-    // 7️⃣ Создание лида
+    // --- 10️⃣ Создание лида ---
     const leadId = crypto.randomBytes(8).toString("hex");
 
     // --- Отправка в Bitrix24 ---
@@ -122,7 +159,7 @@ app.post("/api/lead", async (req, res) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fields: {
-              TITLE: `Wholesale Lead US`,
+              TITLE: `Wholesale Lead`,
               NAME: body.name,
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],
@@ -145,7 +182,7 @@ app.post("/api/lead", async (req, res) => {
     // ✅ Успешный ответ
     return res.json({ ok: true, lead_id: leadId, message: "Lead saved" });
   } catch (err) {
-    console.error("Lead error", err);
+    console.error("Lead error:", err);
     return res.status(500).json({ ok: false, message: "Server error" });
   }
 });

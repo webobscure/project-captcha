@@ -102,11 +102,7 @@ app.post("/api/lead", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Too fast submission" });
     }
 
-    // --- 5️⃣ JS-токен ---
-    if (!body.js_token || typeof body.js_token !== "string" || body.js_token.length < 20) {
-      console.warn("Missing or invalid JS token:", { ip });
-      return res.status(400).json({ ok: false, message: "Missing JS token" });
-    }
+   
 
     // --- 6️⃣ Проверка полей ---
     if (!validatePayload(body)) {

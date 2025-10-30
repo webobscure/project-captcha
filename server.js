@@ -137,6 +137,8 @@ app.post("/api/lead", async (req, res) => {
     const sourceMap = {
       openWholesaleHeader: "с Шапки",
       openWholesaleFooter: "с Футера",
+      solutions: "со страницы business solutions",
+      distributor: "со страницы distributor",
       page: "со страницы",
       modal: "из модалки"
     };

@@ -1,5 +1,5 @@
 import express from "express";
-import fetch from "node-fetch"; // Node 18+ можно использовать встроенный fetch
+import fetch from "node-fetch";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import crypto from "crypto";
@@ -11,20 +11,25 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
-const BITRIX_WEBHOOK = process.env.BITRIX_WEBHOOK; 
+const BITRIX_WEBHOOK = process.env.BITRIX_WEBHOOK;
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "yourdomain.com"; // ← укажи свой домен
 
 app.set("trust proxy", true);
-
 app.use(helmet());
 app.use(express.json());
+
+// --- Разрешённые источники ---
 app.use(
   cors({
-    origin: "*",
+    origin: (origin, callback) => {
+      if (!origin || origin.includes(ALLOWED_ORIGIN)) callback(null, true);
+      else callback(new Error("Not allowed by CORS"));
+    },
     methods: ["POST", "GET"],
   })
 );
 
-// Ограничение запросов
+// --- Лимит запросов ---
 const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -32,15 +37,6 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use("/api/lead", limiter);
-
-// --- Валидация данных формы ---
-function validatePayload(body) {
-  const okEmail = typeof body.email === "string" && /\S+@\S+\.\S+/.test(body.email);
-  const okPhone = typeof body.phone === "string" && body.phone.trim().length >= 7;
-  const okName = typeof body.name === "string" && body.name.trim().length >= 2;
-  const okSku = typeof body.sku === "string" && body.sku.trim().length > 0;
-  return okEmail && okPhone && okName && okSku;
-}
 
 // --- Проверка Turnstile ---
 async function verifyTurnstile(token, remoteip) {
@@ -54,23 +50,51 @@ async function verifyTurnstile(token, remoteip) {
   return res.json();
 }
 
-// --- Эндпоинт для отправки лидов ---
+// --- Валидация формы ---
+function validatePayload(body) {
+  const okEmail = typeof body.email === "string" && /\S+@\S+\.\S+/.test(body.email);
+  const okPhone = typeof body.phone === "string" && body.phone.trim().length >= 7;
+  const okName = typeof body.name === "string" && body.name.trim().length >= 2;
+  const okSku = typeof body.sku === "string" && body.sku.trim().length > 0;
+  return okEmail && okPhone && okName && okSku;
+}
+
+// --- Главный маршрут ---
 app.post("/api/lead", async (req, res) => {
   try {
     const body = req.body;
     const ip = req.ip;
 
-    // Honeypot
-    if (body.hp_field) {
-      return res.status(400).json({ ok: false, message: "Bot detected" });
+    // 1️⃣ Проверка источника запроса
+    const origin = req.get("origin") || req.get("referer") || "";
+    if (!origin.includes(ALLOWED_ORIGIN)) {
+      return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
-    // Валидация
+    // 2️⃣ Honeypot (динамическое имя)
+    const honeypotTriggered = Object.entries(body).some(
+      ([key, value]) => key.startsWith("hp_") && value && value.trim() !== ""
+    );
+    if (honeypotTriggered) {
+      return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
+    }
+
+    // 3️⃣ Проверка времени заполнения
+    if (!body.form_time || Number(body.form_time) < 3) {
+      return res.status(400).json({ ok: false, message: "Too fast submission" });
+    }
+
+    // 4️⃣ JS-токен
+    if (!body.js_token || typeof body.js_token !== "string" || body.js_token.length < 20) {
+      return res.status(400).json({ ok: false, message: "Missing JS token" });
+    }
+
+    // 5️⃣ Проверка основных полей
     if (!validatePayload(body)) {
       return res.status(400).json({ ok: false, message: "Invalid input" });
     }
 
-    // Капча
+    // 6️⃣ Проверка Turnstile
     if (!body.turnstileToken) {
       return res.status(400).json({ ok: false, message: "Captcha token required" });
     }
@@ -82,10 +106,15 @@ app.post("/api/lead", async (req, res) => {
       return res.status(403).json({ ok: false, message: "Captcha verification failed" });
     }
 
-    // Генерация ID лида
+    // (опционально) Проверяем score, если есть
+    if (verify?.score !== undefined && verify.score < 0.5) {
+      return res.status(403).json({ ok: false, message: "Low captcha score" });
+    }
+
+    // 7️⃣ Создание лида
     const leadId = crypto.randomBytes(8).toString("hex");
 
-    // Отправка в Bitrix24
+    // --- Отправка в Bitrix24 ---
     if (BITRIX_WEBHOOK) {
       try {
         const bitrixRes = await fetch(BITRIX_WEBHOOK, {
@@ -113,10 +142,11 @@ app.post("/api/lead", async (req, res) => {
       }
     }
 
+    // ✅ Успешный ответ
     return res.json({ ok: true, lead_id: leadId, message: "Lead saved" });
   } catch (err) {
     console.error("Lead error", err);
-    res.status(500).json({ ok: false, message: "Server error" });
+    return res.status(500).json({ ok: false, message: "Server error" });
   }
 });
 

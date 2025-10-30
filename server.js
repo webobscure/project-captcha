@@ -69,28 +69,24 @@ app.post("/api/lead", async (req, res) => {
     const ip = req.ip;
     const now = Date.now();
 
-    // --- 1️⃣ Проверка источника запроса ---
-    const origin = req.get("origin") || "";
-    const page = body.page_location || "";
-    const ref = body.page_referrer || "";
-
-    if (
-      !origin.includes(ALLOWED_ORIGIN) &&
-      !page.includes(ALLOWED_ORIGIN) &&
-      !ref.includes(ALLOWED_ORIGIN)
-    ) {
-      console.warn("Blocked by origin/ref check:", { ip, origin, page, ref });
-      return res.status(403).json({ ok: false, message: "Invalid origin or referrer" });
+    // --- 1️⃣ Проверка origin (CORS) ---
+    const origin = (req.get("origin") || "").replace(/\/$/, "");
+    if (origin && !origin.includes(ALLOWED_ORIGIN)) {
+      console.warn("Blocked by origin check:", { ip, origin });
+      return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
-    // --- 2️⃣ Проверка на подозрительные домены ---
-    const suspiciousDomains = [/onkron\.us/i, /google/i, /gclid=/i];
+    // --- 2️⃣ Проверка page_location / referrer для инфо ---
+    const page = body.page_location || "";
+    const ref = body.page_referrer || "";
+    // убрал onkron.us из suspicious
+    const suspiciousDomains = [/google/i, /gclid=/i];
     if (suspiciousDomains.some((r) => r.test(page) || r.test(ref))) {
       console.warn("Suspicious domain detected:", { ip, page, ref });
       return res.status(400).json({ ok: false, message: "Suspicious referrer" });
     }
 
-    // --- 3️⃣ Honeypot (динамическое имя) ---
+    // --- 3️⃣ Honeypot ---
     const honeypotTriggered = Object.entries(body).some(
       ([key, value]) => key.startsWith("hp_") && value && value.trim() !== ""
     );
@@ -111,7 +107,7 @@ app.post("/api/lead", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Missing JS token" });
     }
 
-    // --- 6️⃣ Проверка основных полей ---
+    // --- 6️⃣ Проверка полей ---
     if (!validatePayload(body)) {
       console.warn("Invalid payload:", { ip, body });
       return res.status(400).json({ ok: false, message: "Invalid input" });
@@ -122,7 +118,6 @@ app.post("/api/lead", async (req, res) => {
     const phone = (body.phone || "").replace(/\D/g, "");
     const isLatin = /^[A-Za-z\s]+$/.test(name);
     const isCyrillic = /[А-Яа-яЁё]/.test(name);
-
     if ((isLatin && phone.startsWith("7")) || (isCyrillic && phone.startsWith("1"))) {
       console.warn("Suspicious name+phone combo:", { ip, name, phone });
       return res.status(400).json({ ok: false, message: "Suspicious combination" });
@@ -141,7 +136,6 @@ app.post("/api/lead", async (req, res) => {
     if (!body.turnstileToken) {
       return res.status(400).json({ ok: false, message: "Captcha token required" });
     }
-
     const verify = await verifyTurnstile(body.turnstileToken, ip);
     console.log("Turnstile verify response:", verify);
     if (!verify?.success || (verify?.score !== undefined && verify.score < 0.5)) {
@@ -151,7 +145,7 @@ app.post("/api/lead", async (req, res) => {
     // --- 10️⃣ Создание лида ---
     const leadId = crypto.randomBytes(8).toString("hex");
 
-    // --- Отправка в Bitrix24 ---
+    // --- 11️⃣ Отправка в Bitrix24 ---
     if (BITRIX_WEBHOOK) {
       try {
         const bitrixRes = await fetch(BITRIX_WEBHOOK, {
@@ -186,5 +180,6 @@ app.post("/api/lead", async (req, res) => {
     return res.status(500).json({ ok: false, message: "Server error" });
   }
 });
+
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

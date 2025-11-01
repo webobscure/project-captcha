@@ -168,7 +168,7 @@ app.post("/api/lead", async (req, res) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fields: {
-              TITLE: `Wholesale Lead`,
+              TITLE: `Заполнение CRM-формы "Onkron US"`,
               NAME: body.name,
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],

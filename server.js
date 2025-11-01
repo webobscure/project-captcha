@@ -42,16 +42,16 @@ app.use("/api/lead", limiter);
 const recentIps = new Map();
 
 // --- Проверка Turnstile ---
-async function verifyTurnstile(token, remoteip) {
-  const url = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-  const params = new URLSearchParams();
-  params.append("secret", TURNSTILE_SECRET);
-  params.append("response", token);
-  if (remoteip) params.append("remoteip", remoteip);
+// async function verifyTurnstile(token, remoteip) {
+//   const url = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+//   const params = new URLSearchParams();
+//   params.append("secret", TURNSTILE_SECRET);
+//   params.append("response", token);
+//   if (remoteip) params.append("remoteip", remoteip);
 
-  const res = await fetch(url, { method: "POST", body: params });
-  return res.json();
-}
+//   const res = await fetch(url, { method: "POST", body: params });
+//   return res.json();
+// }
 
 // --- Валидация формы ---
 function validatePayload(body) {

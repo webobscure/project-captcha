@@ -136,7 +136,7 @@ app.post("/api/lead", async (req, res) => {
       solutions: "со страницы business solutions",
       distributor: "со страницы distributor",
       page: "со страницы",
-      modal: "из модалки"
+      modal: "из модалки на странице продукта"
     };
 
     let source = "unknown";

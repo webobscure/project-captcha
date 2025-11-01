@@ -148,14 +148,14 @@ app.post("/api/lead", async (req, res) => {
     body.source = source;
 
     // --- 9️⃣ Проверка Turnstile ---
-    if (!body.turnstileToken) {
-      return res.status(400).json({ ok: false, message: "Captcha token required" });
-    }
-    const verify = await verifyTurnstile(body.turnstileToken, ip);
-    console.log("Turnstile verify response:", verify);
-    if (!verify?.success || (verify?.score !== undefined && verify.score < 0.5)) {
-      return res.status(403).json({ ok: false, message: "Captcha verification failed" });
-    }
+    // if (!body.turnstileToken) {
+    //   return res.status(400).json({ ok: false, message: "Captcha token required" });
+    // }
+    // const verify = await verifyTurnstile(body.turnstileToken, ip);
+    // console.log("Turnstile verify response:", verify);
+    // if (!verify?.success || (verify?.score !== undefined && verify.score < 0.5)) {
+    //   return res.status(403).json({ ok: false, message: "Captcha verification failed" });
+    // }
 
     // --- 10️⃣ Создание лида ---
     const leadId = crypto.randomBytes(8).toString("hex");

@@ -70,6 +70,8 @@ app.post("/api/lead", async (req, res) => {
     const body = req.body;
     const ip = req.ip;
     const now = Date.now();
+    // --- Лог лида ---
+    console.log("Lead sented with data:", body);
 
     // --- 1️⃣ Проверка origin (CORS) ---
     const origin = (req.get("origin") || "").replace(/\/$/, "");

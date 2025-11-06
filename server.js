@@ -80,14 +80,14 @@ app.post("/api/lead", async (req, res) => {
       return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
-    // --- 2️⃣ Проверка page_location / referrer для инфо ---
-    const page = body.page_location || "";
-    const ref = body.page_referrer || "";
-    const suspiciousDomains = [/google/i, /gclid=/i];
-    if (suspiciousDomains.some((r) => r.test(page) || r.test(ref))) {
-      console.warn("Suspicious domain detected:", { ip, page, ref });
-      return res.status(400).json({ ok: false, message: "Suspicious referrer" });
-    }
+    // // --- 2️⃣ Проверка page_location / referrer для инфо ---
+    // const page = body.page_location || "";
+    // const ref = body.page_referrer || "";
+    // const suspiciousDomains = [/google/i, /gclid=/i];
+    // if (suspiciousDomains.some((r) => r.test(page) || r.test(ref))) {
+    //   console.warn("Suspicious domain detected:", { ip, page, ref });
+    //   return res.status(400).json({ ok: false, message: "Suspicious referrer" });
+    // }
 
     // --- 3️⃣ Honeypot ---
     const honeypotTriggered = Object.entries(body).some(

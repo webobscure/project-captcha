@@ -73,23 +73,16 @@ app.post("/api/lead", async (req, res) => {
     // --- Лог лида ---
     console.log("Lead sented with data:", body);
 
-    // --- 1️⃣ Проверка origin (CORS) ---
+    // ---  Проверка origin (CORS) ---
     const origin = (req.get("origin") || "").replace(/\/$/, "");
     if (origin && !origin.includes(ALLOWED_ORIGIN)) {
       console.warn("Blocked by origin check:", { ip, origin });
       return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
-    // // --- 2️⃣ Проверка page_location / referrer для инфо ---
-    // const page = body.page_location || "";
-    // const ref = body.page_referrer || "";
-    // const suspiciousDomains = [/google/i, /gclid=/i];
-    // if (suspiciousDomains.some((r) => r.test(page) || r.test(ref))) {
-    //   console.warn("Suspicious domain detected:", { ip, page, ref });
-    //   return res.status(400).json({ ok: false, message: "Suspicious referrer" });
-    // }
+ 
 
-    // --- 3️⃣ Honeypot ---
+    // ---  Honeypot ---
     const honeypotTriggered = Object.entries(body).some(
       ([key, value]) => key.startsWith("hp_") && value && value.trim() !== ""
     );
@@ -98,7 +91,7 @@ app.post("/api/lead", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
     }
 
-    // --- 4️⃣ Проверка времени заполнения ---
+    // ---  Проверка времени заполнения ---
     if (!body.form_time || Number(body.form_time) < 3) {
       console.warn("Form submitted too fast:", { ip, form_time: body.form_time });
       return res.status(400).json({ ok: false, message: "Too fast submission" });
@@ -106,13 +99,13 @@ app.post("/api/lead", async (req, res) => {
 
    
 
-    // --- 6️⃣ Проверка полей ---
+    // ---  Проверка полей ---
     if (!validatePayload(body)) {
       console.warn("Invalid payload:", { ip, body });
       return res.status(400).json({ ok: false, message: "Invalid input" });
     }
 
-    // --- 7️⃣ Проверка имени + телефона ---
+    // ---  Проверка имени + телефона ---
     const name = (body.name || "").trim();
     const phone = (body.phone || "").replace(/\D/g, "");
     const isLatin = /^[A-Za-z\s]+$/.test(name);
@@ -122,7 +115,7 @@ app.post("/api/lead", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Suspicious combination" });
     }
 
-    // --- 8️⃣ Rate-limit вручную (3 лида / минута) ---
+    // ---  Rate-limit вручную (3 лида / минута) ---
     const history = recentIps.get(ip) || [];
     const newHistory = [...history.filter((t) => now - t < 60_000), now];
     recentIps.set(ip, newHistory);
@@ -131,7 +124,7 @@ app.post("/api/lead", async (req, res) => {
       return res.status(429).json({ ok: false, message: "Too many requests" });
     }
 
-    // --- 8.5 Определяем источник формы через маппинг ---
+    // ---  Определяем источник формы через маппинг ---
     const sourceMap = {
       openWholesaleHeader: "с Шапки",
       openWholesaleFooter: "с Футера",
@@ -149,7 +142,7 @@ app.post("/api/lead", async (req, res) => {
     }
     body.source = source;
 
-    // --- 9️⃣ Проверка Turnstile ---
+    // ---  Проверка Turnstile ---
     // if (!body.turnstileToken) {
     //   return res.status(400).json({ ok: false, message: "Captcha token required" });
     // }
@@ -159,10 +152,10 @@ app.post("/api/lead", async (req, res) => {
     //   return res.status(403).json({ ok: false, message: "Captcha verification failed" });
     // }
 
-    // --- 10️⃣ Создание лида ---
+    // ---  Создание лида ---
     const leadId = crypto.randomBytes(8).toString("hex");
 
-    // --- 11️⃣ Отправка в Bitrix24 ---
+    // ---  Отправка в Bitrix24 ---
     if (BITRIX_WEBHOOK) {
       try {
         const bitrixRes = await fetch(BITRIX_WEBHOOK, {

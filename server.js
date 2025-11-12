@@ -15,7 +15,7 @@ const BITRIX_WEBHOOK = process.env.BITRIX_WEBHOOK;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "onkron.us";
 
 // --- Настройка Express ---
-// app.set("trust proxy", true);
+app.set("trust proxy", true);
 app.use(helmet());
 app.use(express.json());
 

@@ -70,70 +70,70 @@ app.post("/api/lead", async (req, res) => {
     const body = req.body;
     const ip = req.ip;
     const now = Date.now();
-    // --- Лог лида ---
-    console.log("Lead sented with data:", body);
 
-    // ---  Проверка origin (CORS) ---
+    console.log("Lead received:", body);
+
+    // --- Проверка origin (CORS) ---
     const origin = (req.get("origin") || "").replace(/\/$/, "");
-    if (origin && !origin.includes(ALLOWED_ORIGIN)) {
-      console.warn("Blocked by origin check:", { ip, origin });
+    const allowedOrigins = ["onkron.us", "www.onkron.us", "onkron.com"];
+    if (origin && !allowedOrigins.some((o) => origin.includes(o))) {
+      console.warn("Blocked by origin:", { ip, origin });
       return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
- 
-
-    // ---  Honeypot ---
+    // --- Honeypot: мягкий режим ---
     const honeypotTriggered = Object.entries(body).some(
       ([key, value]) => key.startsWith("hp_") && value && value.trim() !== ""
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
-      return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
+      // просто логируем, не блокируем
     }
 
-    // ---  Проверка времени заполнения ---
-    if (!body.form_time || Number(body.form_time) < 3) {
-      console.warn("Form submitted too fast:", { ip, form_time: body.form_time });
-      return res.status(400).json({ ok: false, message: "Too fast submission" });
+    // --- Проверка времени заполнения ---
+    const formTime = Number(body.form_time || 0);
+    if (formTime < 1) {
+      console.warn("Form submitted too fast:", { ip, form_time: formTime });
+      // не блокируем, просто логируем
     }
 
-   
-
-    // ---  Проверка полей ---
+    // --- Проверка обязательных полей ---
     if (!validatePayload(body)) {
       console.warn("Invalid payload:", { ip, body });
       return res.status(400).json({ ok: false, message: "Invalid input" });
     }
 
-    // ---  Проверка имени + телефона ---
+    // --- Проверка имени и телефона (мягко) ---
     const name = (body.name || "").trim();
     const phone = (body.phone || "").replace(/\D/g, "");
     const isLatin = /^[A-Za-z\s]+$/.test(name);
     const isCyrillic = /[А-Яа-яЁё]/.test(name);
-    if ((isLatin && phone.startsWith("7")) || (isCyrillic && phone.startsWith("1"))) {
+    if (
+      (isLatin && phone.startsWith("7")) ||
+      (isCyrillic && phone.startsWith("1"))
+    ) {
       console.warn("Suspicious name+phone combo:", { ip, name, phone });
-      return res.status(400).json({ ok: false, message: "Suspicious combination" });
+      // не блокируем
     }
 
-    // ---  Rate-limit вручную (3 лида / минута) ---
+    // --- Rate-limit вручную (до 10 лидов / минута с IP) ---
     const history = recentIps.get(ip) || [];
     const newHistory = [...history.filter((t) => now - t < 60_000), now];
     recentIps.set(ip, newHistory);
-    if (newHistory.length > 3) {
+    if (newHistory.length > 10) {
       console.warn("Too many leads from one IP:", ip);
       return res.status(429).json({ ok: false, message: "Too many requests" });
     }
 
-    // ---  Определяем источник формы через маппинг ---
+    // --- Определяем источник формы ---
     const sourceMap = {
       openWholesaleHeader: "с Шапки",
       openWholesaleFooter: "с Футера",
       solutions: "со страницы business solutions",
       distributor: "со страницы distributor",
       page: "со страницы",
-      modal: "из модалки на странице продукта"
+      modal: "из модалки на странице продукта",
     };
-
     let source = "unknown";
     if (body.button_id && typeof body.button_id === "string") {
       source = sourceMap[body.button_id] || body.button_id;
@@ -142,20 +142,10 @@ app.post("/api/lead", async (req, res) => {
     }
     body.source = source;
 
-    // ---  Проверка Turnstile ---
-    // if (!body.turnstileToken) {
-    //   return res.status(400).json({ ok: false, message: "Captcha token required" });
-    // }
-    // const verify = await verifyTurnstile(body.turnstileToken, ip);
-    // console.log("Turnstile verify response:", verify);
-    // if (!verify?.success || (verify?.score !== undefined && verify.score < 0.5)) {
-    //   return res.status(403).json({ ok: false, message: "Captcha verification failed" });
-    // }
-
-    // ---  Создание лида ---
+    // --- Создание лида ---
     const leadId = crypto.randomBytes(8).toString("hex");
 
-    // ---  Отправка в Bitrix24 ---
+    // --- Отправка в Bitrix ---
     if (BITRIX_WEBHOOK) {
       try {
         const bitrixRes = await fetch(BITRIX_WEBHOOK, {
@@ -168,7 +158,9 @@ app.post("/api/lead", async (req, res) => {
               PHONE: [{ VALUE: body.phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: body.email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: body.company || "",
-              COMMENTS: `SKU/INFO: ${body.sku}\nFrom ${body.page_location || ""}\nForm source: ${body.source}\nBy ${body.name}`,
+              COMMENTS: `SKU/INFO: ${body.sku}\nFrom ${
+                body.page_location || ""
+              }\nForm source: ${body.source}\nBy ${body.name}`,
               SOURCE_ID: "WEBFORM",
               UTM_SOURCE: body.page_location || "",
               WEBFORM_URL: body.page_location || "",
@@ -183,7 +175,6 @@ app.post("/api/lead", async (req, res) => {
       }
     }
 
-    // ✅ Успешный ответ
     return res.json({ ok: true, lead_id: leadId, message: "Lead saved" });
   } catch (err) {
     console.error("Lead error:", err);

@@ -94,6 +94,7 @@ app.post("/api/lead", async (req, res) => {
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
+      return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
       // просто логируем, не блокируем
     }
 

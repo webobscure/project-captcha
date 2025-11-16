@@ -127,7 +127,7 @@ app.post("/api/lead", async (req, res) => {
     const history = recentIps.get(ip) || [];
     const newHistory = [...history.filter((t) => now - t < 60_000), now];
     recentIps.set(ip, newHistory);
-    if (newHistory.length > 10) {
+    if (newHistory.length > 3) {
       console.warn("Too many leads from one IP:", ip);
       return res.status(429).json({ ok: false, message: "Too many requests" });
     }

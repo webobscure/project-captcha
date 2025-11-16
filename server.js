@@ -88,14 +88,13 @@ app.post("/api/lead", async (req, res) => {
       return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
-    // --- Honeypot: мягкий режим ---
+    // --- Honeypot ---
     const honeypotTriggered = Object.entries(body).some(
       ([key, value]) => key.startsWith("hp_") && value && value.trim() !== ""
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
       return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
-      // просто логируем, не блокируем
     }
 
     // --- Проверка времени заполнения ---

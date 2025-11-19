@@ -120,7 +120,8 @@ app.post("/api/lead", async (req, res) => {
       (isCyrillic && phone.startsWith("1"))
     ) {
       console.warn("Suspicious name+phone combo:", { ip, name, phone });
-      // не блокируем
+      return res.status(429).json({ ok: false, message: "Suspicious name+phone combo" });
+
     }
 
     // --- Rate-limit вручную (до 10 лидов / минута с IP) ---

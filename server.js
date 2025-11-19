@@ -120,7 +120,7 @@ app.post("/api/lead", async (req, res) => {
       (isCyrillic && phone.startsWith("1"))
     ) {
       console.warn("Suspicious name+phone combo:", { ip, name, phone });
-      return res.status(429).json({ ok: false, message: "Suspicious name+phone combo" });
+      return res.status(450).json({ ok: false, message: "Suspicious name+phone combo" });
 
     }
 

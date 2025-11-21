@@ -215,7 +215,8 @@ app.post("/api/heyform", async (req, res) => {
 
     // --- Honeypot ---
     const honeypotTriggered = Object.entries(body).some(
-      ([key, value]) => key.startsWith("obscurepot") && value && value.trim() !== ""
+      ([key, value]) =>
+        key.startsWith("obscurepot") && value && value.trim() !== ""
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
@@ -273,6 +274,8 @@ app.post("/api/heyform", async (req, res) => {
     const phone = mapValue("phone");
     const company = mapValue("company");
     const sku = mapValue("SKU/Info") || "";
+    const pageLocation = body.hiddenFields?.find(f => f.name === 'page_location')?.value || '';
+
 
     // --- Проверка обязательных полей ---
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
@@ -314,7 +317,8 @@ app.post("/api/heyform", async (req, res) => {
               PHONE: [{ VALUE: phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: company || "",
-              COMMENTS: `SKU/INFO: ${sku}\nFrom client: ${body.name}\nFrom page: ${body.page_location}`,
+              COMMENTS: `SKU/INFO: ${sku}\nFrom client: ${name}\nFrom page: ${pageLocation}`,
+              UTM_SOURCE: pageLocation || "",
               SOURCE_ID: "WEBFORM",
               WEBFORM_URL: body.formName || "",
             },

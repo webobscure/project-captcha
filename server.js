@@ -219,14 +219,21 @@ app.post("/api/heyform", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Invalid structure" });
     }
 
-    // --- Достаём поля из answer ---
-    const mapValue = (title) => {
-      const item = body.answers.find((a) =>
-        a.title?.toLowerCase().includes(title.toLowerCase())
-      );
-      return item?.value || "";
+    // --- normalize title ---
+    const normalizeTitle = (t) => {
+      if (!t) return "";
+      if (Array.isArray(t)) return t.join(" ").trim();
+      return String(t).trim();
     };
 
+    // --- function for reading fields ---
+    const mapValue = (title) => {
+      const item = body.answers.find((a) => {
+        const t = normalizeTitle(a.title).toLowerCase();
+        return t.includes(title.toLowerCase());
+      });
+      return item?.value || "";
+    };
     const name = mapValue("name") || mapValue("contact name");
     const email = mapValue("email");
     const phone = mapValue("phone");

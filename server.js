@@ -221,16 +221,24 @@ app.post("/api/heyform", async (req, res) => {
 
     const normalizeValue = (v) => {
       if (!v) return "";
+
+      // simple string
       if (typeof v === "string") return v.trim();
+
+      // number → convert
       if (typeof v === "number") return String(v);
+
+      // HeyForm full_name type
       if (typeof v === "object") {
-        // full_name → { first, last }
-        if (v.first || v.last) {
-          return [v.first, v.last].filter(Boolean).join(" ").trim();
+        const f = v.first || v.firstName || "";
+        const l = v.last || v.lastName || "";
+        if (f || l) {
+          return `${f} ${l}`.trim();
         }
-        // другие объекты
         return JSON.stringify(v);
       }
+
+      // fallback
       return String(v);
     };
 
@@ -290,7 +298,7 @@ app.post("/api/heyform", async (req, res) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fields: {
-              TITLE: `Lead from HeyForm (${body.formName || ""})`,
+              TITLE: `Заполнение CRM-формы "Onkron US"`,
               NAME: name,
               PHONE: [{ VALUE: phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],

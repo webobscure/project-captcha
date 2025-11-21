@@ -205,7 +205,7 @@ app.post("/api/heyform", async (req, res) => {
 
     console.log("HeyForm Lead received:", body);
 
-    // --- CORS Проверка ---
+    // --- CORS ---
     const origin = (req.get("origin") || "").replace(/\/$/, "");
     const allowedOrigins = ["onkron.us", "www.onkron.us", "onkron.com"];
     if (origin && !allowedOrigins.some((o) => origin.includes(o))) {
@@ -215,14 +215,11 @@ app.post("/api/heyform", async (req, res) => {
 
     // --- Honeypot ---
     const honeypotTriggered = Object.entries(body).some(
-      ([key, value]) =>
-        key.startsWith("obscurepot") && value && value.trim() !== ""
+      ([key, value]) => key.startsWith("obscurepot") && value && value.trim() !== ""
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
-      return res
-        .status(400)
-        .json({ ok: false, message: "Bot detected (honeypot)" });
+      return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
     }
 
     // --- Проверка структуры HeyForm ---
@@ -233,75 +230,68 @@ app.post("/api/heyform", async (req, res) => {
 
     const normalizeValue = (v) => {
       if (!v) return "";
-
-      // simple string
       if (typeof v === "string") return v.trim();
-
-      // number → convert
       if (typeof v === "number") return String(v);
-
-      // HeyForm full_name type
       if (typeof v === "object") {
         const f = v.first || v.firstName || "";
         const l = v.last || v.lastName || "";
-        if (f || l) {
-          return `${f} ${l}`.trim();
-        }
+        if (f || l) return `${f} ${l}`.trim();
         return JSON.stringify(v);
       }
-
-      // fallback
       return String(v);
     };
 
-    // --- normalize title ---
     const normalizeTitle = (t) => {
       if (!t) return "";
       if (Array.isArray(t)) return t.join(" ").trim();
       return String(t).trim();
     };
 
-    // --- function for reading fields ---
     const mapValue = (title) => {
-      const item = body.answers.find((a) => {
-        const t = normalizeTitle(a.title).toLowerCase();
-        return t.includes(title.toLowerCase());
-      });
+      const item = body.answers.find(a =>
+        normalizeTitle(a.title).toLowerCase().includes(title.toLowerCase())
+      );
       return normalizeValue(item?.value);
     };
+
     const name = mapValue("name") || mapValue("contact name");
     const email = mapValue("email");
     const phone = mapValue("phone");
     const company = mapValue("company");
     const sku = mapValue("SKU/Info") || "";
-    const pageLocation = body.hiddenFields?.find(f => f.name === 'page_location')?.value || '';
 
+    // --- Получаем скрытые поля ---
+    const hiddenFields = body.hiddenFields || [];
+    const pageLocationEncoded = hiddenFields.find(f => f.name === 'page_location')?.value || '';
+    const source = hiddenFields.find(f => f.name === 'source')?.value || '';
+    const pageLocation = decodeURIComponent(pageLocationEncoded);
+
+    // --- Разбор UTM ---
+    let utm_source = '', utm_medium = '', utm_campaign = '', utm_term = '', utm_content = '';
+    try {
+      const url = new URL(pageLocation || 'https://onkron.us/');
+      const params = url.searchParams;
+      utm_source = params.get('utm_source') || '';
+      utm_medium = params.get('utm_medium') || '';
+      utm_campaign = params.get('utm_campaign') || '';
+      utm_term = params.get('utm_term') || '';
+      utm_content = params.get('utm_content') || '';
+    } catch (err) {
+      console.warn("Invalid pageLocation URL:", pageLocation);
+    }
 
     // --- Проверка обязательных полей ---
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      return res.status(400).json({ ok: false, message: "Invalid email" });
-    }
-
-    if (!phone || String(phone).replace(/\D/g, "").length < 7) {
-      return res.status(400).json({ ok: false, message: "Invalid phone" });
-    }
-
-    if (!name || name.length < 2) {
-      return res.status(400).json({ ok: false, message: "Invalid name" });
-    }
+    if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ ok: false, message: "Invalid email" });
+    if (!phone || String(phone).replace(/\D/g, "").length < 7) return res.status(400).json({ ok: false, message: "Invalid phone" });
+    if (!name || name.length < 2) return res.status(400).json({ ok: false, message: "Invalid name" });
 
     // --- Rate-limit вручную ---
     const now = Date.now();
     const history = recentIps.get(ip) || [];
-    const newHistory = [...history.filter((t) => now - t < 60_000), now];
+    const newHistory = [...history.filter(t => now - t < 60_000), now];
     recentIps.set(ip, newHistory);
+    if (newHistory.length > 4) return res.status(429).json({ ok: false, message: "Too many requests" });
 
-    if (newHistory.length > 4) {
-      console.warn("Too many HeyForm leads:", ip);
-      return res.status(429).json({ ok: false, message: "Too many requests" });
-    }
-
-    // --- Lead ID ---
     const leadId = crypto.randomBytes(8).toString("hex");
 
     // --- Отправка в Bitrix ---
@@ -317,10 +307,14 @@ app.post("/api/heyform", async (req, res) => {
               PHONE: [{ VALUE: phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: company || "",
-              COMMENTS: `SKU/INFO: ${sku}\nFrom client: ${name}\nFrom page: ${pageLocation}`,
-              UTM_SOURCE: pageLocation || "",
+              COMMENTS: `SKU/INFO: ${sku}\nSource: ${source}\nPage: ${pageLocation}`,
               SOURCE_ID: "WEBFORM",
-              WEBFORM_URL: body.formName || "",
+              WEBFORM_URL: pageLocation || body.formName || "",
+              UTM_SOURCE: utm_source,
+              UTM_MEDIUM: utm_medium,
+              UTM_CAMPAIGN: utm_campaign,
+              UTM_TERM: utm_term,
+              UTM_CONTENT: utm_content
             },
             params: { REGISTER_SONET_EVENT: "Y" },
           }),
@@ -333,15 +327,12 @@ app.post("/api/heyform", async (req, res) => {
       }
     }
 
-    return res.json({
-      ok: true,
-      lead_id: leadId,
-      message: "HeyForm lead saved",
-    });
+    return res.json({ ok: true, lead_id: leadId, message: "HeyForm lead saved" });
   } catch (err) {
     console.error("HeyForm lead error:", err);
     return res.status(500).json({ ok: false, message: "Server error" });
   }
 });
+
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

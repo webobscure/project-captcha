@@ -215,11 +215,14 @@ app.post("/api/heyform", async (req, res) => {
 
     // --- Honeypot ---
     const honeypotTriggered = Object.entries(body).some(
-      ([key, value]) => key.startsWith("obscurepot") && value && value.trim() !== ""
+      ([key, value]) =>
+        key.startsWith("obscurepot") && value && value.trim() !== ""
     );
     if (honeypotTriggered) {
       console.warn("Honeypot triggered:", { ip, body });
-      return res.status(400).json({ ok: false, message: "Bot detected (honeypot)" });
+      return res
+        .status(400)
+        .json({ ok: false, message: "Bot detected (honeypot)" });
     }
 
     // --- Проверка структуры HeyForm ---
@@ -248,7 +251,7 @@ app.post("/api/heyform", async (req, res) => {
     };
 
     const mapValue = (title) => {
-      const item = body.answers.find(a =>
+      const item = body.answers.find((a) =>
         normalizeTitle(a.title).toLowerCase().includes(title.toLowerCase())
       );
       return normalizeValue(item?.value);
@@ -262,34 +265,44 @@ app.post("/api/heyform", async (req, res) => {
 
     // --- Получаем скрытые поля ---
     const hiddenFields = body.hiddenFields || [];
-    const pageLocation = decodeURIComponent(body.hiddenFields.find(f => f.name === "page_location")?.value || '');
-    const source = hiddenFields.find(f => f.name === 'source')?.value || '';
+    const pageLocation = decodeURIComponent(
+      hiddenFields.find((f) => f.name === "page_location")?.value || ""
+    );
+    const source = hiddenFields.find((f) => f.name === "source")?.value || "";
 
     // --- Разбор UTM ---
-    let utm_source = '', utm_medium = '', utm_campaign = '', utm_term = '', utm_content = '';
+    let utm_source = "",
+      utm_medium = "",
+      utm_campaign = "",
+      utm_term = "",
+      utm_content = "";
     try {
-      const url = new URL(pageLocation || 'https://onkron.us/');
+      const url = new URL(pageLocation || "https://onkron.us/");
       const params = url.searchParams;
-      utm_source = params.get('utm_source') || '';
-      utm_medium = params.get('utm_medium') || '';
-      utm_campaign = params.get('utm_campaign') || '';
-      utm_term = params.get('utm_term') || '';
-      utm_content = params.get('utm_content') || '';
+      utm_source = params.get("utm_source") || "";
+      utm_medium = params.get("utm_medium") || "";
+      utm_campaign = params.get("utm_campaign") || "";
+      utm_term = params.get("utm_term") || "";
+      utm_content = params.get("utm_content") || "";
     } catch (err) {
       console.warn("Invalid pageLocation URL:", pageLocation);
     }
 
     // --- Проверка обязательных полей ---
-    if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ ok: false, message: "Invalid email" });
-    if (!phone || String(phone).replace(/\D/g, "").length < 7) return res.status(400).json({ ok: false, message: "Invalid phone" });
-    if (!name || name.length < 2) return res.status(400).json({ ok: false, message: "Invalid name" });
+    if (!email || !/\S+@\S+\.\S+/.test(email))
+      return res.status(400).json({ ok: false, message: "Invalid email" });
+    if (!phone || String(phone).replace(/\D/g, "").length < 7)
+      return res.status(400).json({ ok: false, message: "Invalid phone" });
+    if (!name || name.length < 2)
+      return res.status(400).json({ ok: false, message: "Invalid name" });
 
     // --- Rate-limit вручную ---
     const now = Date.now();
     const history = recentIps.get(ip) || [];
-    const newHistory = [...history.filter(t => now - t < 60_000), now];
+    const newHistory = [...history.filter((t) => now - t < 60_000), now];
     recentIps.set(ip, newHistory);
-    if (newHistory.length > 4) return res.status(429).json({ ok: false, message: "Too many requests" });
+    if (newHistory.length > 4)
+      return res.status(429).json({ ok: false, message: "Too many requests" });
 
     const leadId = crypto.randomBytes(8).toString("hex");
 
@@ -313,7 +326,7 @@ app.post("/api/heyform", async (req, res) => {
               UTM_MEDIUM: utm_medium,
               UTM_CAMPAIGN: utm_campaign,
               UTM_TERM: utm_term,
-              UTM_CONTENT: utm_content
+              UTM_CONTENT: utm_content,
             },
             params: { REGISTER_SONET_EVENT: "Y" },
           }),
@@ -326,12 +339,15 @@ app.post("/api/heyform", async (req, res) => {
       }
     }
 
-    return res.json({ ok: true, lead_id: leadId, message: "HeyForm lead saved" });
+    return res.json({
+      ok: true,
+      lead_id: leadId,
+      message: "HeyForm lead saved",
+    });
   } catch (err) {
     console.error("HeyForm lead error:", err);
     return res.status(500).json({ ok: false, message: "Server error" });
   }
 });
-
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

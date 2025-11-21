@@ -262,9 +262,8 @@ app.post("/api/heyform", async (req, res) => {
 
     // --- Получаем скрытые поля ---
     const hiddenFields = body.hiddenFields || [];
-    const pageLocationEncoded = hiddenFields.find(f => f.name === 'page_location')?.value || '';
+    const pageLocation = decodeURIComponent(body.hiddenFields.find(f => f.name === "page_location")?.value || '');
     const source = hiddenFields.find(f => f.name === 'source')?.value || '';
-    const pageLocation = decodeURIComponent(pageLocationEncoded);
 
     // --- Разбор UTM ---
     let utm_source = '', utm_medium = '', utm_campaign = '', utm_term = '', utm_content = '';

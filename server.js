@@ -213,6 +213,17 @@ app.post("/api/heyform", async (req, res) => {
       return res.status(403).json({ ok: false, message: "Invalid origin" });
     }
 
+    // --- Honeypot ---
+    const honeypotTriggered = Object.entries(body).some(
+      ([key, value]) => key.startsWith("obscurepot") && value && value.trim() !== ""
+    );
+    if (honeypotTriggered) {
+      console.warn("Honeypot triggered:", { ip, body });
+      return res
+        .status(400)
+        .json({ ok: false, message: "Bot detected (honeypot)" });
+    }
+
     // --- Проверка структуры HeyForm ---
     if (!body.answers || !Array.isArray(body.answers)) {
       console.warn("Invalid HeyForm structure:", body);
@@ -303,7 +314,7 @@ app.post("/api/heyform", async (req, res) => {
               PHONE: [{ VALUE: phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: company || "",
-              COMMENTS: `SKU/INFO: ${sku}\nForm ID: ${body.formId}\nSubmission ID: ${body.id}`,
+              COMMENTS: `SKU/INFO: ${sku}\nFrom client: ${body.name}\nFrom page: ${body.page_location}`,
               SOURCE_ID: "WEBFORM",
               WEBFORM_URL: body.formName || "",
             },

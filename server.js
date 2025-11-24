@@ -319,7 +319,7 @@ app.post("/api/heyform", async (req, res) => {
               PHONE: [{ VALUE: phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: company || "",
-              COMMENTS: `SKU/INFO: ${sku}\nSource: ${source}\nPage: ${pageLocation}`,
+              COMMENTS: `SKU/INFO: ${sku}\By: ${name}\nPage: ${pageLocation}`,
               SOURCE_ID: "WEBFORM",
               WEBFORM_URL: pageLocation || body.formName || "",
               UTM_SOURCE: utm_source,

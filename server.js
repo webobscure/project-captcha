@@ -202,7 +202,7 @@ app.post("/api/heyform", async (req, res) => {
   try {
     const ip = req.ip;
     const body = req.body;
-
+    const formName = body.formName
     console.log("HeyForm Lead received:", body);
 
     // --- CORS ---
@@ -319,7 +319,7 @@ app.post("/api/heyform", async (req, res) => {
               PHONE: [{ VALUE: phone, VALUE_TYPE: "WORK" }],
               EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
               COMPANY_TITLE: company || "",
-              COMMENTS: `SKU/INFO: ${sku}\By: ${name}\nPage: ${pageLocation}`,
+              COMMENTS: `Form: ${formName}\nSKU/INFO: ${sku}\nBy: ${name}\nPage: ${pageLocation}`,
               SOURCE_ID: "WEBFORM",
               WEBFORM_URL: pageLocation || body.formName || "",
               UTM_SOURCE: utm_source,

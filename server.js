@@ -29,7 +29,6 @@ app.use((req, res, next) => {
     next();
   });
 });
-app.use(express.json());
 
 app.use(
   cors({
@@ -354,108 +353,43 @@ console.log("RAW BODY:", req.body);
 
 
 // --- Маршрут для Zappier ---
-app.post("/api/zapier", upload.none(), async (req, res) => {
+app.post("/api/zapier", express.urlencoded({ extended: true }), upload.none(), async (req, res) => {
   try {
     console.log("---- Incoming Request ----");
     console.log("HEADERS:", req.headers);
-    console.log("BODY RAW:", req.body);
+    console.log("BODY RAW (parsed):", req.body);
 
     let body = req.body;
 
-    // --- Если Zapier прислал JSON строкой в поле "data" ---
+    // Если Zapier прислал JSON строкой
     if (typeof body.data === "string") {
       try {
         const parsed = JSON.parse(body.data);
         body = { ...body, ...parsed };
-        console.log("Parsed Zapier body.data:", parsed);
+        console.log("Parsed Zapier data:", parsed);
       } catch (err) {
-        console.warn("Failed to parse Zapier data:", err);
+        console.warn("Cannot parse Zapier data JSON:", err);
       }
     }
 
-    // --- Унифицированные поля формы ---
-    const formName =
-      body.formName || body.title || body.form_title || "Unknown form";
-
-    // --- Универсальный парсер: HeyForm answers[] или плоские поля Zapier ---
-    const getValue = (keys) => {
-      if (!Array.isArray(keys)) keys = [keys];
-
-      // 1) Попытка найти в "answers" (HeyForm)
-      if (Array.isArray(body.answers)) {
-        for (const a of body.answers) {
-          const t = (Array.isArray(a.title) ? a.title.join(" ") : a.title || "")
-            .toLowerCase();
-          const match = keys.some((k) => t.includes(k));
-          if (match) return a.value || "";
-        }
-      }
-
-      // 2) Попытка найти в обычных полях (Zapier)
-      for (const key of Object.keys(body)) {
-        const clean = key.toLowerCase();
-        const match = keys.some((k) => clean.includes(k));
-        if (match) return body[key];
-      }
-
-      return "";
-    };
-
-    const name =
-      getValue(["name", "full name", "contact name"]) ||
-      body.name ||
-      body.full_name ||
-      "";
-
-    const email = getValue(["email"]);
-    const phone = getValue(["phone"]);
-    const company = getValue(["company"]);
-    const sku = getValue(["sku", "info"]);
-
-    // --- Hidden fields ---
-    const hiddenFields = body.hiddenFields || [];
-    const pageLocation =
-      hiddenFields.find((f) => f.name === "page_location")?.value ||
-      body.page_location ||
-      "";
-    const source =
-      hiddenFields.find((f) => f.name === "source")?.value ||
-      body.source ||
-      "";
-
-    // --- Собираем lead ---
     const lead = {
-      formName,
-      name,
-      email,
-      phone,
-      company,
-      sku,
-      pageLocation,
-      source,
+      formName: body.formName || body.title || "Unknown form",
+      name: body["(ID: bdSUOpyXgOTn) Full Name"] || body.name || "",
+      email: body["(ID: hK548GZNzLSJ) Email"] || body.email || "",
+      phone: body["(ID: gA2gCPB5cc4r) Contact Phone"] || body.phone || "",
+      sku: body["(ID: gpEXflAxGgen) SKU/Info"] || body.sku || "",
       raw: body,
     };
 
     console.log("FINAL LEAD OBJECT:", lead);
 
-    // --- Валидации ---
-    if (!email || !/\S+@\S+\.\S+/.test(email))
-      return res.status(400).json({ ok: false, message: "Invalid email" });
-
-    if (!phone || String(phone).replace(/\D/g, "").length < 7)
-      return res.status(400).json({ ok: false, message: "Invalid phone" });
-
-    if (!name || name.length < 2)
-      return res.status(400).json({ ok: false, message: "Invalid name" });
-
-    // --- Тут можно вставить отправку в Bitrix или CRM ---
-    // await sendToBitrix(lead);
-
     return res.json({ ok: true, lead });
+
   } catch (err) {
-    console.error("HeyForm/Zapier error:", err);
+    console.error("Zapier error:", err);
     return res.status(500).json({ ok: false, message: "Server error" });
   }
 });
+
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

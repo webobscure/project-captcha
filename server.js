@@ -17,7 +17,8 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "onkron.us";
 
 // --- Настройка Express ---
 app.set("trust proxy", true);
-
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(helmet());
 // --- Лог IP ---
 app.use((req, res, next) => {
@@ -352,6 +353,7 @@ console.log("RAW BODY:", req.body);
     return res.status(500).json({ ok: false, message: "Server error" });
   }
 });
+
 
 // --- Маршрут для Zappier ---
 app.post("/api/zapier", upload.none(), async (req, res) => {

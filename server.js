@@ -22,15 +22,13 @@ app.use(express.json());
 app.use(helmet());
 // --- Лог IP ---
 app.use((req, res, next) => {
-  console.log(
-    "Incoming request from IP:",
-    req.ip,
-    "via X-Forwarded-For:",
-    req.headers["x-forwarded-for"]
-  );
-  next();
+  let raw = '';
+  req.on('data', chunk => raw += chunk);
+  req.on('end', () => {
+    req.rawBody = raw;
+    next();
+  });
 });
-
 app.use(express.json());
 
 app.use(
